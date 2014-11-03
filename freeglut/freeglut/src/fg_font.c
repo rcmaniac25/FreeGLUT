@@ -27,6 +27,7 @@
 
 #include <GL/freeglut.h>
 #include "fg_internal.h"
+#include "fg_gl2.h"
 
 /*
  * TODO BEFORE THE STABLE RELEASE:
@@ -92,6 +93,8 @@ static SFG_StrokeFont* fghStrokeByID( void* font )
 
 
 /* -- INTERFACE FUNCTIONS -------------------------------------------------- */
+
+#ifndef TARGET_HOST_BLACKBERRY //TODO
 
 /*
  * Draw a bitmap character
@@ -249,6 +252,131 @@ int FGAPIENTRY glutBitmapHeight( void* fontID )
     return font->Height;
 }
 
+#endif
+
+#ifdef TARGET_HOST_BLACKBERRY //TODO
+
+/* Version for OpenGL (ES) 1.1 */
+static void fghDrawStroke11( GLfloat *vertices, GLsizei numVertices, GLenum vertexMode, GLenum vertexMode2 )
+{
+    glEnableClientState(GL_VERTEX_ARRAY);
+
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+
+    glDrawArrays(vertexMode, 0, numVertices);
+    if (vertexMode2)
+        glDrawArrays(vertexMode2, 0, numVertices);
+
+    glDisableClientState(GL_NORMAL_ARRAY);
+}
+
+/* Version for OpenGL (ES) >= 2.0 */
+static void fghDrawStroke20( GLfloat *vertices, GLsizei numVertices, GLenum vertexMode, GLenum vertexMode2, GLint attribute_v_coord )
+{
+    GLuint vbo_coords = 0;
+
+    if (numVertices > 0) {
+        fghGenBuffers(1, &vbo_coords);
+        fghBindBuffer(FGH_ARRAY_BUFFER, vbo_coords);
+        fghBufferData(FGH_ARRAY_BUFFER, numVertices * 2 * sizeof(vertices[0]),
+                      vertices, FGH_STATIC_DRAW);
+    }
+
+    if (vbo_coords) {
+        fghEnableVertexAttribArray(attribute_v_coord);
+        fghVertexAttribPointer(
+            attribute_v_coord,  /* attribute */
+            2,                  /* number of elements per vertex, here (x,y) */
+            GL_FLOAT,           /* the type of each element */
+            GL_FALSE,           /* take our values as-is */
+            0,                  /* no extra data between each position */
+            0                   /* offset of first element */
+        );
+
+        glDrawArrays(vertexMode, 0, numVertices);
+        if (vertexMode2)
+            glDrawArrays(vertexMode2, 0, numVertices);
+
+        fghDisableVertexAttribArray(attribute_v_coord);
+
+        fghDeleteBuffers(1, &vbo_coords);
+    }
+}
+
+void fghDrawStroke( GLfloat *vertices, GLsizei numVertices, GLboolean allowDrawPoints )
+{
+    GLint attribute_v_coord = fgStructure.CurrentWindow->Window.attribute_v_coord;
+    GLenum vertexMode2 = allowDrawPoints && fgState.StrokeFontDrawJoinDots ? GL_POINTS : 0;
+
+    if (fgState.HasOpenGL20 && attribute_v_coord != -1)
+        /* User requested a 2.0 draw */
+        fghDrawStroke20( vertices, numVertices, 
+            GL_LINE_STRIP, vertexMode2, 
+            attribute_v_coord );
+    else
+        fghDrawStroke11( vertices, numVertices, 
+            GL_LINE_STRIP, vertexMode2 );
+}
+
+/*
+ * Draw a stroke character
+ */
+void FGAPIENTRY glutStrokeCharacter( void* fontID, int character )
+{
+    const SFG_StrokeChar *schar;
+    const SFG_StrokeStrip *strip;
+    int i, j, k, vertexCount;
+    GLfloat *vertices;
+    SFG_StrokeFont* font;
+    FREEGLUT_EXIT_IF_NOT_INITIALISED ( "glutStrokeCharacter" );
+    font = fghStrokeByID( fontID );
+    if (!font)
+    {
+        fgWarning("glutStrokeCharacter: stroke font 0x%08x not found. Make sure you're not passing a bitmap font.\n",fontID);
+        return;
+    }
+    freeglut_return_if_fail( character >= 0 );
+    freeglut_return_if_fail( character < font->Quantity );
+
+    schar = font->Characters[ character ];
+    freeglut_return_if_fail( schar );
+
+    /* Count the number of verticies the fond char is */
+    vertexCount = 0;
+    strip = schar->Strips;
+    for( i = 0; i < schar->Number; i++, strip++ )
+    {
+        vertexCount += strip->Number;
+    }
+
+    /* Build the vertex list */
+    vertices = malloc( vertexCount * 2 * sizeof( GLfloat ) );
+    if (!vertices)
+    {
+        fgError("Failed to allocate memory in glutStrokeCharacter");
+    }
+
+    strip = schar->Strips;
+    for ( i = 0, k = 0; i < schar->Number; i++, strip++ )
+    {
+        for ( j = 0; j < strip->Number; j++, k += 2 )
+        {
+            vertices[ k + 0 ] = strip->Vertices[ j ].X;
+            vertices[ k + 1 ] = strip->Vertices[ j ].Y;
+        }
+    }
+
+    /* Draw character */
+    fghDrawStroke( vertices, vertexCount, GL_TRUE );
+
+    /* Cleanup */
+    free(vertices);
+}
+
+void glutStrokeString( void* font, const unsigned char *string ) {}
+
+#else
+
 /*
  * Draw a stroke character
  */
@@ -342,6 +470,8 @@ void FGAPIENTRY glutStrokeString( void* fontID, const unsigned char *string )
             }
         }
 }
+
+#endif
 
 /*
  * Return the width in pixels of a stroke character

@@ -72,6 +72,7 @@ SET(FREEGLUT_SRCS
     src/fg_cursor.c
     src/fg_display.c
     src/fg_ext.c
+    src/fg_font.c
     src/fg_font_data.c
     src/fg_gamemode.c
     src/fg_geometry.c
@@ -98,7 +99,6 @@ SET(FREEGLUT_SRCS
 # TODO: OpenGL ES requires a compatible version of these files:
 IF(NOT FREEGLUT_GLES)
     LIST(APPEND FREEGLUT_SRCS
-        src/fg_font.c
         src/fg_menu.c
     )
 ELSE()
