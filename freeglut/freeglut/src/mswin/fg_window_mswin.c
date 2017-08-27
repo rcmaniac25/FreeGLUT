@@ -488,7 +488,7 @@ void fghGetClientArea( RECT *clientRect, const SFG_Window *window, BOOL posIsOut
 }
 
 
-#if(WINVER >= 0x500)
+#if(WINVER >= _WIN32_WINNT_WIN2K)
 typedef struct
 {
       int *x;

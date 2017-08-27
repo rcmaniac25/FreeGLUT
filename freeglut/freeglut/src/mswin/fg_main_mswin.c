@@ -1501,7 +1501,7 @@ LRESULT CALLBACK fgPlatformWindowProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
     /* handle multi-touch messages */
     case WM_TOUCH:
     {
-        unsigned int numInputs = (unsigned int)wParam;
+        unsigned int numInputs = LOWORD(wParam);
         unsigned int i = 0;
         TOUCHINPUT* ti = (TOUCHINPUT*)malloc( sizeof(TOUCHINPUT)*numInputs);
 

@@ -629,7 +629,7 @@ void FGAPIENTRY glutInitDisplayString( const char* displayMode )
             break ;
 
         case 36 :  /* "aux":  some number of aux buffers */
-            glut_state_flag |= GLUT_AUX;
+            glut_state_flag |= GLUT_AUX;  /* Somebody fix this for me! */
             break ;
 
         case 37 :  /* Unrecognized */

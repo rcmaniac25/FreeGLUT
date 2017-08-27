@@ -52,7 +52,7 @@ int fghChooseConfig(EGLConfig* config) {
   /* attribs[i++] = EGL_OPENGL_BIT; */
 #ifdef TARGET_HOST_BLACKBERRY
   /* Only 888 and 565 seem to work. Based on
-       http://qt.gitorious.org/qt/qtbase/source/893deb1a93021cdfabe038cdf1869de33a60cbc9:src/plugins/platforms/qnx/qqnxglcontext.cpp and
+       https://github.com/qt/qtbase/blob/893deb1a93021cdfabe038cdf1869de33a60cbc9/src/plugins/platforms/qnx/qqnxglcontext.cpp and
        https://twitter.com/BlackBerryDev/status/380720927475912706 */
   ATTRIB_VAL(EGL_BLUE_SIZE, 8);
   ATTRIB_VAL(EGL_GREEN_SIZE, 8);
