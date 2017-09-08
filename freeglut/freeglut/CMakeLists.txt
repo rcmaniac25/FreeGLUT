@@ -550,6 +550,27 @@ ADD_DEMO(shapes          progs/demos/shapes/shapes.c
                          progs/demos/shapes/glmatrix.h
                          progs/demos/shapes/glmatrix.c)
 ADD_DEMO(smooth_opengl3  progs/demos/smooth_opengl3/smooth_opengl3.c)
+IF (WIN32)
+    ADD_DEMO(hdr_display     progs/demos/hdr_display/hdr_display.c)
+
+    FIND_PATH(NVAPI_DIR NAMES nvapi.h PATHS "E:\\Documents\\Visual Studio\\Stuff\\NVAPI\\R384-developer")
+    FIND_LIBRARY(NVAPI_LIBRARY NAMES nvapi64 nvapi nvapi PATHS ${NVAPI_DIR} PATH_SUFFIXES amd64 x86)
+
+    include(FindPackageHandleStandardArgs)
+    find_package_handle_standard_args(nvapi DEFAULT_MSG NVAPI_LIBRARY NVAPI_DIR)
+    IF (NOT nvapi_FOUND)
+        MESSAGE(FATAL_ERROR "Cannot find NVAPI")
+    ENDIF()
+
+    INCLUDE_DIRECTORIES(${NVAPI_DIR})
+
+    IF(FREEGLUT_BUILD_SHARED_LIBS)
+        TARGET_LINK_LIBRARIES(hdr_display ${NVAPI_LIBRARY})
+    ENDIF()
+    IF(FREEGLUT_BUILD_STATIC_LIBS)
+        TARGET_LINK_LIBRARIES(hdr_display_static ${NVAPI_LIBRARY})
+    ENDIF()
+ENDIF()
 IF(UNIX)
     ADD_DEMO(spaceball       progs/demos/spaceball/spaceball.c
                              progs/demos/spaceball/vmath.c

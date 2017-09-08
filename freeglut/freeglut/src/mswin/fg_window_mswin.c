@@ -38,12 +38,18 @@
 typedef const char * (WINAPI * PFNWGLGETEXTENSIONSSTRINGARBPROC) (HDC hdc);
 
 typedef BOOL (WINAPI * PFNWGLCHOOSEPIXELFORMATARBPROC) (HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
+//typedef BOOL (WINAPI * PFNWGLGETPIXELFORMATATTRIBIVPROC) (HDC hdc, int iPixelFormat, int iLayerPlane, UINT nAttributes, const int *piAttributes, int *piValues);
 
+//#define WGL_NUMBER_PIXEL_FORMATS_ARB   0x2000
 #define WGL_DRAW_TO_WINDOW_ARB         0x2001
 #define WGL_ACCELERATION_ARB           0x2003
 #define WGL_SUPPORT_OPENGL_ARB         0x2010
 #define WGL_DOUBLE_BUFFER_ARB          0x2011
+#define WGL_PIXEL_TYPE_ARB             0x2013
 #define WGL_COLOR_BITS_ARB             0x2014
+#define WGL_RED_BITS_ARB               0x2015
+#define WGL_GREEN_BITS_ARB             0x2017
+#define WGL_BLUE_BITS_ARB              0x2019
 #define WGL_ALPHA_BITS_ARB             0x201B
 #define WGL_DEPTH_BITS_ARB             0x2022
 #define WGL_STENCIL_BITS_ARB           0x2023
@@ -266,6 +272,37 @@ static void fghFillPixelFormatAttributes( int *attributes, const PIXELFORMATDESC
   ATTRIB_VAL( WGL_SAMPLES_ARB, fgState.SampleNumber );
   ATTRIB( 0 );
 }
+
+static void fghFillPixelFormatAttributesFloatingPoint(int *attributes, const PIXELFORMATDESCRIPTOR *ppfd)
+{
+	int where = 0;
+
+	ATTRIB_VAL(WGL_DRAW_TO_WINDOW_ARB, GL_TRUE);
+	ATTRIB_VAL(WGL_SUPPORT_OPENGL_ARB, GL_TRUE);
+	ATTRIB_VAL(WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB);
+
+	ATTRIB_VAL(WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_FLOAT_ARB);
+
+	ATTRIB_VAL(WGL_RED_BITS_ARB, 16);
+	ATTRIB_VAL(WGL_BLUE_BITS_ARB, 16);
+	ATTRIB_VAL(WGL_GREEN_BITS_ARB, 16);
+	ATTRIB_VAL(WGL_ALPHA_BITS_ARB, 16);
+
+	ATTRIB_VAL(WGL_DEPTH_BITS_ARB, ppfd->cDepthBits);
+	ATTRIB_VAL(WGL_STENCIL_BITS_ARB, ppfd->cStencilBits);
+
+	ATTRIB_VAL(WGL_DOUBLE_BUFFER_ARB, (fgState.DisplayMode & GLUT_DOUBLE) != 0);
+
+	if (fgState.DisplayMode & GLUT_SRGB) {
+		ATTRIB_VAL(WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB, TRUE);
+	}
+
+	if (fgState.DisplayMode & GLUT_MULTISAMPLE) {
+		ATTRIB_VAL(WGL_SAMPLE_BUFFERS_ARB, GL_TRUE);
+		ATTRIB_VAL(WGL_SAMPLES_ARB, fgState.SampleNumber);
+	}
+	ATTRIB(0);
+}
 #endif
 
 GLboolean fgSetupPixelFormat( SFG_Window* window, GLboolean checkOnly,
@@ -290,7 +327,8 @@ GLboolean fgSetupPixelFormat( SFG_Window* window, GLboolean checkOnly,
 
     /* windows hack for multismapling/sRGB */
     if ( ( fgState.DisplayMode & GLUT_MULTISAMPLE ) ||
-         ( fgState.DisplayMode & GLUT_SRGB ) )
+         ( fgState.DisplayMode & GLUT_SRGB ) ||
+		 ( fgState.DisplayMode & 0x4000 ) ) // "Use floating point back buffer" flag
     {        
         HGLRC rc, rc_before=wglGetCurrentContext();
         HWND hWnd;
@@ -316,6 +354,8 @@ GLboolean fgSetupPixelFormat( SFG_Window* window, GLboolean checkOnly,
         {
             PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARBProc =
               (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress("wglChoosePixelFormatARB");
+			//PFNWGLGETPIXELFORMATATTRIBIVPROC wglGetPixelFormatAttribivARBProc =
+			//	(PFNWGLGETPIXELFORMATATTRIBIVPROC) wglGetProcAddress("wglGetPixelFormatAttribivARB");
             if ( wglChoosePixelFormatARBProc )
             {
                 int attributes[100];
@@ -323,13 +363,70 @@ GLboolean fgSetupPixelFormat( SFG_Window* window, GLboolean checkOnly,
                 BOOL bValid;
                 float fAttributes[] = { 0, 0 };
                 UINT numFormats;
-                fghFillPixelFormatAttributes( attributes, ppfd );
+				if ( ( fgState.DisplayMode & 0x4000 ) && fghIsExtensionSupported( hDC, "WGL_ARB_pixel_format_float" ) )
+				{
+					fghFillPixelFormatAttributesFloatingPoint(attributes, ppfd);
+				}
+				else
+				{
+					fghFillPixelFormatAttributes(attributes, ppfd);
+				}
                 bValid = wglChoosePixelFormatARBProc(hDC, attributes, fAttributes, 1, &iPixelFormat, &numFormats);
 
                 if ( bValid && numFormats > 0 )
                 {
                     pixelformat = iPixelFormat;
                 }
+#if 0
+				else
+				{
+					memset(attributes, 0, sizeof(attributes));
+					attributes[0] = WGL_NUMBER_PIXEL_FORMATS_ARB;
+					bValid = wglGetPixelFormatAttribivARBProc(hDC, 0, 0, 1, attributes, &attributes[1]);
+					if (bValid)
+					{
+						numFormats = attributes[1];
+
+						attributes[0] = WGL_DRAW_TO_WINDOW_ARB;
+						attributes[1] = WGL_SUPPORT_OPENGL_ARB;
+						attributes[2] = WGL_ACCELERATION_ARB;
+
+						attributes[3] = WGL_PIXEL_TYPE_ARB;
+
+						attributes[4] = WGL_RED_BITS_ARB;
+						attributes[5] = WGL_BLUE_BITS_ARB;
+						attributes[6] = WGL_GREEN_BITS_ARB;
+						attributes[7] = WGL_ALPHA_BITS_ARB;
+
+						attributes[8] = WGL_COLOR_BITS_ARB;
+						attributes[9] = WGL_DEPTH_BITS_ARB;
+						attributes[10] = WGL_STENCIL_BITS_ARB;
+
+						attributes[11] = WGL_DOUBLE_BUFFER_ARB;
+
+						attributes[12] = WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB;
+
+						attributes[13] = WGL_SAMPLE_BUFFERS_ARB;
+						attributes[14] = WGL_SAMPLES_ARB;
+
+						for (UINT i = 0; i < numFormats; i++)
+						{
+							bValid = wglGetPixelFormatAttribivARBProc(hDC, (int)i, 0, 15, attributes, &attributes[15]);
+							if (bValid && attributes[18] == WGL_TYPE_RGBA_FLOAT_ARB)
+							{
+								printf("index: %d; {WGL_DRAW_TO_WINDOW_ARB=%d, WGL_SUPPORT_OPENGL_ARB=%d, WGL_ACCELERATION_ARB=%d, WGL_PIXEL_TYPE_ARB=WGL_TYPE_RGBA_FLOAT_ARB, "
+									"WGL_RED_BITS_ARB=%d, WGL_BLUE_BITS_ARB=%d, WGL_GREEN_BITS_ARB=%d, WGL_ALPHA_BITS_ARB=%d, "
+									"WGL_COLOR_BITS_ARB=%d, WGL_DEPTH_BITS_ARB=%d, WGL_STENCIL_BITS_ARB=%d, "
+									"WGL_DOUBLE_BUFFER_ARB=%d, WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB=%d, WGL_SAMPLE_BUFFERS_ARB=%d, WGL_SAMPLES_ARB=%d}\n", 
+									i, attributes[15], attributes[16], attributes[17], 
+									attributes[19], attributes[20], attributes[21], attributes[22],
+									attributes[23], attributes[24], attributes[25],
+									attributes[26], attributes[27], attributes[28], attributes[29]);
+							}
+						}
+					}
+				}
+#endif
             }
         }
 
